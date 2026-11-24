@@ -109,13 +109,7 @@ service.sh（root，PPID=1）
                 再以 root 启动 shizuku_server）
 ```
 
-几个踩过的坑，写在代码注释里了：
-
-- **不能用 `app_process` 启动**：Shizuku 的 starter 依赖 native 库，直接跑会 `UnsatisfiedLinkError: librish.so`，必须调用 APK 里的 `libshizuku.so`。
-- **启动器日志不能写进模块目录**：启动过程中它会调 `pm`，在模块目录里会报 `fatal: can't get path of manager`，日志要落到 `/data/local/tmp`。
-- **HyperOS 没有 `topResumedActivity`**：前台检测同时匹配 `topResumedActivity` 和 `ResumedActivity`，再退回 `mFocusedApp`。
-- **自动发现不能用 `grep shizuku`**：`dumpsys package` 的输出里混着最近任务列表，会误判；只认 `moe.shizuku.manager.permission` 这条权限声明。
-- **别 `pkill -f service.sh`**：会把自己也匹配进去，用 pidfile + 锁目录判断存活。
+前台检测优先取 `ResumedActivity`（HyperOS 上没有 `topResumedActivity`），拿不到再退回 `mFocusedApp`；自动发现只认 `moe.shizuku.manager.permission` 这条权限声明，不去裸匹配 `shizuku` 字样。
 
 ## 文件
 
