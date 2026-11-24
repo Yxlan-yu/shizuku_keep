@@ -66,10 +66,12 @@ find_starter() {
 }
 
 # shizuku_server 的 pid 列表
+# 注意：不能用 pgrep -f —— 它会匹配任意含 "shizuku_server" 字样的命令行
+# （包括正在执行本函数的 shell），从而把"服务已死"误判成"还活着"
 shizuku_pids() {
   p=$(pidof shizuku_server 2>/dev/null)
-  [ -z "$p" ] && p=$(pgrep -f shizuku_server 2>/dev/null)
-  [ -z "$p" ] && p=$(ps -A -o PID,NAME 2>/dev/null | awk '$2 ~ /shizuku_server/ {print $1}')
+  [ -z "$p" ] && p=$(pgrep -x shizuku_server 2>/dev/null)
+  [ -z "$p" ] && p=$(ps -A -o PID,NAME 2>/dev/null | awk '$2 == "shizuku_server" { print $1 }')
   echo "$p"
 }
 
