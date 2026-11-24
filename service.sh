@@ -85,21 +85,35 @@ if [ -z "$SHIZUKU_KEEP_DETACHED" ] && command -v setsid >/dev/null 2>&1; then
 fi
 
 # ---- 单实例锁（mkdir 原子操作，避免开机瞬间双实例）----
+# 判定"已有实例"必须核对进程身份：重启后 pid 会被别的进程复用
+#（曾踩过：锁里是 1776，重启后 1776 变成 surfaceflinger，新守护直接退出）
+BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
 if ! mkdir "$LOCK" 2>/dev/null; then
   OLD=$(cat "$LOCK/pid" 2>/dev/null)
+  OLD_BOOT=$(cat "$LOCK/boot" 2>/dev/null)
+  STALE=1
   if [ -n "$OLD" ] && [ -d "/proc/$OLD" ]; then
-    exit 0
+    if [ -n "$OLD_BOOT" ] && [ -n "$BOOT_ID" ] && [ "$OLD_BOOT" != "$BOOT_ID" ]; then
+      STALE=1                      # 上一次开机的锁，直接作废
+    elif grep -qa 'shizuku_keep/service\.sh' "/proc/$OLD/cmdline" 2>/dev/null; then
+      STALE=0                      # 确认是上一个守护
+    fi
   fi
+  [ "$STALE" = "0" ] && exit 0
   rm -rf "$LOCK"
   mkdir "$LOCK" 2>/dev/null || exit 0
 fi
 echo $$ >"$LOCK/pid"
+[ -n "$BOOT_ID" ] && echo "$BOOT_ID" >"$LOCK/boot"
 rm -f /data/adb/shizuku_keep.pid
 
+# 日志超过 80KB 时只留尾部，不要整份清空
 trim_log() {
   [ -f "$LOG" ] || return 0
   sz=$(wc -c <"$LOG" 2>/dev/null)
-  [ -n "$sz" ] && [ "$sz" -gt 81920 ] && : >"$LOG"
+  if [ -n "$sz" ] && [ "$sz" -gt 81920 ]; then
+    tail -200 "$LOG" >"$LOG.tmp" 2>/dev/null && mv -f "$LOG.tmp" "$LOG" 2>/dev/null
+  fi
   return 0
 }
 
@@ -155,6 +169,13 @@ while true; do
 
   NOW=$(date +%s)
 
+  # 自动发现重扫：与运行模式无关，服务常驻时也要定期跑
+  #（以前只写在按需分支里，服务一直在线就永远不重扫，列表会一直停在开机那一版）
+  if [ "$AUTO_WATCH" = "1" ] && [ $((NOW - LAST_SCAN)) -ge "${AUTO_RESCAN:-1800}" ]; then
+    LAST_SCAN=$NOW
+    ( scan_auto ) &
+  fi
+
   if alive; then
     sleep "${POLL_ALIVE:-12}"
     trim_log
@@ -168,16 +189,13 @@ while true; do
   fi
 
   # ---- 按需模式 ----
-  # 定期重扫，保证新装的 Shizuku 应用自动纳入
-  if [ "$AUTO_WATCH" = "1" ] && [ $((NOW - LAST_SCAN)) -ge "${AUTO_RESCAN:-1800}" ]; then
-    LAST_SCAN=$NOW
-    ( scan_auto ) &
-  fi
-
   fg=$(fg_pkg)
   if [ "$fg" != "$LAST_FG" ]; then
-    log "前台切换: ${fg:-未知}"
     LAST_FG="$fg"
+    # 只记命中监听列表的应用，否则 AOD / 桌面 / 相册来回切会把日志刷满
+    if is_watched "$fg"; then
+      log "前台进入监听应用: $fg"
+    fi
   fi
   if is_watched "$fg"; then
     start_server "前台 $fg"

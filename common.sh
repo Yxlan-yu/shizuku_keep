@@ -79,6 +79,15 @@ shizuku_alive() {
   [ -n "$(shizuku_pids)" ]
 }
 
+# 当前守护进程的 pid；核对 cmdline，避免重启后 pid 被别的进程复用时误判
+guard_pid() {
+  g=$(cat /data/adb/shizuku_keep.lock/pid 2>/dev/null)
+  if [ -n "$g" ] && [ -d "/proc/$g" ] \
+     && grep -qa 'shizuku_keep/service\.sh' "/proc/$g/cmdline" 2>/dev/null; then
+    echo "$g"
+  fi
+}
+
 # 拉起 Shizuku，$1 = 缘由（仅用于日志）
 start_shizuku() {
   starter=$(find_starter)

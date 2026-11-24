@@ -1,7 +1,7 @@
 id=shizuku_keep
 name=Shizuku 常驻守护
-version=v2.7
-versionCode=12
+version=v2.8
+versionCode=13
 author=Yxlan-yu
 description=开机以 root 拉起 Shizuku 并常驻看护(解决部分APP只要Shizuku权限并容易掉的问题)，掉线约 10 秒自动补回，授权长期有效。内置 WebUI 可查看状态、切换模式、管理目标应用。
 updateJson=https://raw.githubusercontent.com/Yxlan-yu/shizuku_keep/main/update.json

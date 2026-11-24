@@ -1,6 +1,6 @@
 {
-  "version": "v2.7",
-  "versionCode": 12,
-  "zipUrl": "https://github.com/Yxlan-yu/shizuku_keep/releases/download/v2.7/shizuku_keep_v2.7.zip",
-  "changelog": "v2.7：修复二级弹层打开时按系统返回键会直接退回管理器的问题，返回键现在先关闭弹层；顺带去掉了应用列表里重复的条目。"
+  "version": "v2.8",
+  "versionCode": 13,
+  "zipUrl": "https://github.com/Yxlan-yu/shizuku_keep/releases/download/v2.8/shizuku_keep_v2.8.zip",
+  "changelog": "v2.8：修复重启后守护进程因 pid 被复用而无法启动的问题；点击重启守护不再误杀同 pid 的其他进程；日志不再被 AOD/桌面切换刷满；自动发现改为与服务在线状态无关，定时重扫。"
 }

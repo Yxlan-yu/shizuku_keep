@@ -54,7 +54,7 @@ trim_ws() { echo $1; }
 # ---------- status ----------
 cmd_status() {
   p=$(shizuku_pids | awk '{print $1}')
-  g=$(cat /data/adb/shizuku_keep.lock/pid 2>/dev/null)
+  g=$(guard_pid)
   echo "mode=$ALWAYS_ON"
   echo "autowatch=$AUTO_WATCH"
   echo "poll_dead=$POLL_DEAD"
@@ -68,7 +68,7 @@ cmd_status() {
   else
     echo "svc=0"
   fi
-  if [ -n "$g" ] && [ -d "/proc/$g" ]; then
+  if [ -n "$g" ]; then
     echo "guard=1"
     echo "guard_pid=$g"
   else
@@ -214,7 +214,7 @@ cmd_stop() {
 
 # ---------- 立即扫描 ----------
 cmd_scan() {
-  ( cd "$MODDIR" && nohup sh service.sh --scan-only >/dev/null 2>&1 </dev/null ) &
+  ( cd /data/local/tmp && setsid sh "$MODDIR/service.sh" --scan-only >/dev/null 2>&1 </dev/null ) &
   echo "ok|扫描已开始，约 1 分钟"
 }
 
@@ -331,13 +331,18 @@ cmd_insetbar() {
 
 # ---------- 守护重启 ----------
 cmd_guard() {
-  g=$(cat /data/adb/shizuku_keep.lock/pid 2>/dev/null)
+  # 只杀确认是本模块的守护，别把复用这个 pid 的其它进程一起带走
+  g=$(guard_pid)
   [ -n "$g" ] && kill -9 "$g" 2>/dev/null
   rm -rf /data/adb/shizuku_keep.lock
   sleep 1
-  ( cd "$MODDIR" && nohup sh service.sh >/dev/null 2>&1 </dev/null ) &
+  ( cd /data/local/tmp && setsid sh "$MODDIR/service.sh" >/dev/null 2>&1 </dev/null ) &
   sleep 3
-  echo "ok|守护已重启"
+  if [ -n "$(guard_pid)" ]; then
+    echo "ok|守护已重启 pid=$(guard_pid)"
+  else
+    echo "err|守护启动失败，请查看 keep.log"
+  fi
 }
 
 case "$1" in
