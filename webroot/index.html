@@ -916,16 +916,57 @@
   var curTab = 'all';
   var scopeAll = false;      // false = 只看用户应用（默认，系统应用屏蔽）
   var userSet = null;        // 用户应用集合，旧版管理器用来筛「最近打开」
+  var sheetOpen = false;     // 弹层是否展开
+  var sheetPushed = false;   // 是否压了历史记录（用来接管返回键）
+
+  // 包名去重（原生接口在多用户场景下可能返回重复项）
+  function uniq(list) {
+    var seen = {}, out = [];
+    list.forEach(function (x) {
+      if (x && !seen[x]) { seen[x] = 1; out.push(x); }
+    });
+    return out;
+  }
 
   function openSheet() {
+    if (sheetOpen) return;
+    sheetOpen = true;
     $('mask').classList.add('show');
     $('sheet').classList.add('show');
+    // 压一条历史记录：这样系统返回键 / 手势返回先触发 popstate 关弹层，
+    // 而不是直接把整个 WebUI 退回到管理器
+    try {
+      history.pushState({ skSheet: 1 }, '');
+      sheetPushed = true;
+    } catch (e) {
+      sheetPushed = false;
+    }
     loadAllApps().then(loadRecent);
   }
-  function closeSheet() {
+
+  function hideSheet() {
+    sheetOpen = false;
     $('mask').classList.remove('show');
     $('sheet').classList.remove('show');
   }
+
+  function closeSheet() {
+    if (sheetPushed) {
+      // 退掉自己压的那条历史，收尾交给 popstate
+      try { history.back(); } catch (e) { sheetPushed = false; hideSheet(); }
+      // 兜底：个别 WebView 不触发 popstate
+      setTimeout(function () {
+        if (sheetOpen) { sheetPushed = false; hideSheet(); }
+      }, 150);
+      return;
+    }
+    hideSheet();
+  }
+
+  window.addEventListener('popstate', function () {
+    sheetPushed = false;
+    if (sheetOpen) hideSheet();
+  });
 
   function pkgArray(s) {
     return String(s || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
@@ -954,6 +995,7 @@
   function loadAllApps() {
     if (DEMO) { allPkgs = demo.all.slice(); renderAll(); return Promise.resolve(); }
     return fetchPackages(scopeAll ? 'all' : 'user').then(function (list) {
+      list = uniq(list);
       if (!scopeAll) {
         userSet = {};
         list.forEach(function (p) { userSet[p] = 1; });
