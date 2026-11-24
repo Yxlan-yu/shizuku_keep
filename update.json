@@ -1,6 +1,6 @@
 {
-  "version": "v2.5",
-  "versionCode": 10,
-  "zipUrl": "https://github.com/Yxlan-yu/shizuku_keep/releases/download/v2.5/shizuku_keep_v2.5.zip",
-  "changelog": "v2.5：模块介绍文案调整。"
+  "version": "v2.6",
+  "versionCode": 11,
+  "zipUrl": "https://github.com/Yxlan-yu/shizuku_keep/releases/download/v2.6/shizuku_keep_v2.6.zip",
+  "changelog": "v2.6：补齐 boot-completed.sh 与 uninstall.sh；启动器改为按 ABI 优先级定位并扫描 split APK，前台检测多字段兜底，新增 SHIZUKU_PKG 配置，不再绑定特定机型或 ROM。"
 }

@@ -7,10 +7,13 @@ import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FILES = [
+    'boot-completed.sh',
+    'common.sh',
     'config.conf',
     'customize.sh',
     'module.prop',
     'service.sh',
+    'uninstall.sh',
     'watch.sh',
     'webui.sh',
     'webroot/demo-icons.js',

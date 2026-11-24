@@ -20,7 +20,6 @@ case "$0" in
 esac
 CONF="$MODDIR/config.conf"
 AUTOLIST=/data/adb/shizuku_keep.auto
-PKG="moe.shizuku.privileged.api"
 
 [ "$(id -u)" = "0" ] || { echo "需要 root 权限运行"; exit 1; }
 
@@ -106,18 +105,21 @@ cmd_auto() {
 
 cmd_now() {
   load
-  APK=$(pm path "$PKG" 2>/dev/null | head -1 | cut -d: -f2)
-  [ -z "$APK" ] && { echo "找不到 Shizuku"; exit 1; }
-  case "$(getprop ro.product.cpu.abi)" in
-    arm64*) ABIDIR=arm64 ;; armeabi*) ABIDIR=arm ;; x86_64*) ABIDIR=x86_64 ;; x86) ABIDIR=x86 ;; *) ABIDIR=arm64 ;;
-  esac
-  S="${APK%/base.apk}/lib/$ABIDIR/libshizuku.so"
   echo "拉起 Shizuku..."
-  ( cd /data/local/tmp && "$S" >/data/local/tmp/shizuku_starter.log 2>&1 </dev/null ) &
+  if ! start_shizuku "命令行"; then
+    echo "找不到 Shizuku 启动器（未安装，或 APK 内没有 native 库）"
+    exit 1
+  fi
   sleep 8
-  p=$(pidof shizuku_server 2>/dev/null)
+  p=$(shizuku_pids | awk '{print $1}')
   [ -n "$p" ] && echo "已启动 pid=$p" || echo "启动失败，看 /data/local/tmp/shizuku_starter.log"
 }
+
+# 公共函数（定位启动器 / 存活判断），配置先读一遍让 SHIZUKU_PKG 生效
+# shellcheck disable=SC1091
+[ -f "$CONF" ] && . "$CONF"
+# shellcheck disable=SC1091
+. "$MODDIR/common.sh"
 
 case "$1" in
   list|ls)  cmd_list ;;

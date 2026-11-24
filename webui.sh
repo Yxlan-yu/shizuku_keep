@@ -17,7 +17,6 @@ LOGF="$MODDIR/keep.log"
 STARTERLOG=/data/local/tmp/shizuku_starter.log
 NRTMP=/data/local/tmp/shizuku_nr
 CHUNK=225000
-PKG="moe.shizuku.privileged.api"
 
 ALWAYS_ON=1
 WATCH_APPS=""
@@ -28,6 +27,10 @@ POLL_ALIVE=12
 AUTO_RESCAN=1800
 # shellcheck disable=SC1090
 [ -f "$CONF" ] && . "$CONF"
+
+# 公共函数（定位启动器 / 存活判断 / 前台探测）
+# shellcheck disable=SC1091
+. "$MODDIR/common.sh"
 
 # ---------- 配置写入 ----------
 set_num() {
@@ -50,7 +53,7 @@ trim_ws() { echo $1; }
 
 # ---------- status ----------
 cmd_status() {
-  p=$(pidof shizuku_server 2>/dev/null | awk '{print $1}')
+  p=$(shizuku_pids | awk '{print $1}')
   g=$(cat /data/adb/shizuku_keep.lock/pid 2>/dev/null)
   echo "mode=$ALWAYS_ON"
   echo "autowatch=$AUTO_WATCH"
@@ -94,12 +97,18 @@ cmd_apps() {
 }
 
 # ---------- recent：最近打开过的应用 ----------
+# 不同 ROM 的 dumpsys 字段不一样，两种格式都收：
+#   HyperOS/MIUI  A=12345:com.foo
+#   AOSP          u0 com.foo/.Act
+# 再用 pm list packages -3 交叉验证，只留下真实安装的用户应用
 cmd_recent() {
-  dumpsys activity recents 2>/dev/null \
-    | grep -E '^[[:space:]]+\* Recent #' \
-    | sed -n 's/.*A=[0-9][0-9]*:\([A-Za-z0-9._][A-Za-z0-9._]*\).*/\1/p' \
-    | awk '!seen[$0]++' \
-    | head -15
+  tmp=/data/local/tmp/.sk_recent.$$
+  pm list packages -3 2>/dev/null | sed 's/^package://' | tr -d '\r' >"$tmp" 2>/dev/null
+  dumpsys activity recents 2>/dev/null | {
+    grep -oE 'A=[0-9]+:[A-Za-z][A-Za-z0-9._]*' | sed 's/^A=[0-9]*://'
+    grep -oE '[A-Za-z][A-Za-z0-9._]*/[A-Za-z0-9._$]+' | cut -d/ -f1
+  } | awk 'NR==FNR { ok[$0]=1; next } NF && ok[$0] && !seen[$0]++' "$tmp" - | head -15
+  rm -f "$tmp"
 }
 
 # ---------- 校验某个包是否真的用 Shizuku ----------
@@ -186,27 +195,20 @@ cmd_autowatch() {
 
 # ---------- 重启服务 ----------
 cmd_restart() {
-  for x in $(pidof shizuku_server 2>/dev/null); do kill -9 "$x" 2>/dev/null; done
+  for x in $(shizuku_pids); do kill -9 "$x" 2>/dev/null; done
   sleep 1
-  APK=$(pm path "$PKG" 2>/dev/null | head -1 | cut -d: -f2)
-  [ -z "$APK" ] && { echo "err|未安装 Shizuku"; exit 0; }
-  case "$(getprop ro.product.cpu.abi)" in
-    arm64*)   A=arm64 ;;
-    armeabi*) A=arm ;;
-    x86_64*)  A=x86_64 ;;
-    x86)      A=x86 ;;
-    *)        A=arm64 ;;
-  esac
-  S="${APK%/base.apk}/lib/$A/libshizuku.so"
-  ( cd /data/local/tmp && "$S" >"$STARTERLOG" 2>&1 </dev/null ) &
+  if ! start_shizuku "WebUI 手动重启"; then
+    echo "err|未安装 Shizuku，或 APK 内没有 native 库"
+    exit 0
+  fi
   sleep 7
-  n=$(pidof shizuku_server 2>/dev/null | awk '{print $1}')
+  n=$(shizuku_pids | awk '{print $1}')
   [ -n "$n" ] && echo "ok|服务已重启 pid=$n" || echo "err|启动失败，请查看日志"
 }
 
 # ---------- 停止服务 ----------
 cmd_stop() {
-  for x in $(pidof shizuku_server 2>/dev/null); do kill -9 "$x" 2>/dev/null; done
+  for x in $(shizuku_pids); do kill -9 "$x" 2>/dev/null; done
   echo "ok|已停止（守护会在 6~12 秒内自动拉起）"
 }
 
@@ -319,6 +321,11 @@ cmd_insetbar() {
       | sed -n 's/.*frame=\[0,0\]\[[0-9]*,\([0-9]*\)\].*/\1/p')
   [ -z "$h" ] && h=$(dumpsys window 2>/dev/null | grep -m1 -o 'type=statusBars[^}]*' \
       | sed -n 's/.*top=\([0-9]*\).*/\1/p')
+  # 再兜底：按 24dp 估算（各 ROM 状态栏的常见高度），总比 0 好
+  if [ -z "$h" ] || [ "$h" = "0" ]; then
+    dpi=$(wm density 2>/dev/null | grep -oE '[0-9]+' | sort -n | tail -1)
+    [ -n "$dpi" ] && h=$((dpi * 24 / 160))
+  fi
   echo "${h:-0}"
 }
 

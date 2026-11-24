@@ -25,6 +25,7 @@ Shizuku 平时靠 ADB / 无线调试启动，一旦手机重启、调试断开�
 - **WebUI 管理**：状态、PID、模式开关、应用列表（带真实图标和名称）、运行日志，点点就能改
 - **单实例保护**：`mkdir` 原子锁 + pidfile，开机瞬间不会拉出两个守护
 - **弱侵入**：不 patch 系统、不注入应用，只用 root 启动 Shizuku 自己的启动器
+- **不挑机型**：不限 ROM / ABI，KernelSU 与 Magisk 都能装；启动器按 ABI 优先级自动定位，支持 split APK，Shizuku 改过包名也能用
 
 ## 安装
 
@@ -96,27 +97,35 @@ su -c 'sh /data/adb/modules/shizuku_keep/watch.sh now'            # 立即拉起
 | `EXCLUDE_APPS` | `""` | 自动发现的黑名单，空格分隔 |
 | `POLL_DEAD` | `6` | 服务不在时的探测间隔（秒） |
 | `POLL_ALIVE` | `12` | 服务健在时的心跳间隔（秒） |
+| `SHIZUKU_PKG` | `moe.shizuku.privileged.api` | Shizuku 包名，改过包名的分支版本改这里即可 |
 
 ## 工作原理
 
 ```
-service.sh（root，PPID=1）
-   ├─ 等 sys.boot_completed
-   ├─ 读 config.conf
-   ├─ 检查 pidof shizuku_server
-   └─ 不在 → 执行 Shizuku 自带的 lib/arm64/libshizuku.so
-              （它自己切 mount namespace / cgroup，定位 base.apk，
-                再以 root 启动 shizuku_server）
+boot-completed.sh（开机完成后，KernelSU 调用）
+   └─ ALWAYS_ON=1 且服务不在 → 立刻拉起
+
+service.sh（root，PPID=1，常驻）
+   ├─ 读 config.conf（每轮重读，改完即生效）
+   ├─ shizuku_server 还在？→ 睡 12 秒再看
+   └─ 不在了 → 执行 Shizuku 自带的启动器
+                lib/<abi>/libshizuku.so
 ```
 
-前台检测优先取 `ResumedActivity`（HyperOS 上没有 `topResumedActivity`），拿不到再退回 `mFocusedApp`；自动发现只认 `moe.shizuku.manager.permission` 这条权限声明，不去裸匹配 `shizuku` 字样。
+启动器由 Shizuku 自己的 APK 提供，它负责切 mount namespace / cgroup、定位 base.apk，再以 root 启动 `shizuku_server`。模块只做"找得到、叫得动"：ABI 按 `ro.product.cpu.abi` → `abilist` 顺序试，`pm path` 返回多个 APK（split 安装）时逐个扫 `lib/` 子目录，因此 x86 设备、ABI 分包的设备都能用。
+
+前台检测优先取 `ResumedActivity`（HyperOS 上没有 `topResumedActivity`），拿不到退回 `mCurrentFocus` / `mFocusedApp`，再不行用 `dumpsys activity top`；自动发现只认 `moe.shizuku.manager.permission` 这条权限声明，不去裸匹配 `shizuku` 字样。
 
 ## 文件
 
 | 路径 | 说明 |
 |---|---|
 | `/data/adb/modules/shizuku_keep/` | 模块本体（config、脚本、webroot） |
-| `/data/adb/modules/shizuku_keep/keep.log` | 守护日志（超过 80KB 自动清空） |
+| `service.sh` | 常驻守护 |
+| `boot-completed.sh` | 开机完成时拉起（KernelSU；Magisk 由 service.sh 兜底） |
+| `uninstall.sh` | 卸载时清理缓存与锁 |
+| `common.sh` | 启动器定位 / 存活判断 / 前台探测，被上面几个脚本 source |
+| `keep.log` | 守护日志（超过 80KB 自动清空） |
 | `/data/local/tmp/shizuku_starter.log` | Shizuku 启动器自己的日志 |
 | `/data/adb/shizuku_keep.auto` | 自动发现结果缓存 |
 | `/data/adb/shizuku_keep.names` | 应用名/图标缓存 |
@@ -130,11 +139,11 @@ service.sh（root，PPID=1）
 **要不要装 Shizuku？**
 要，本模块只是拉起和管理 Shizuku 本体，不替代它。
 
-**更新后模块卡片文案没变？**
-KernelSU 管理器缓存了卡片信息，退出模块详情页再进一次就好。
-
 **会不会被判成病毒/被系统杀？**
 不会。守护是 root 启动的普通 shell 循环，没有注入任何进程；`shizuku_server` 本身就是 Shizuku 自己的服务。
+
+**卸载后会不会留垃圾？**
+不会。`uninstall.sh` 会把 `/data/adb/shizuku_keep.*` 的缓存、锁和图标的都清掉，只保留 Shizuku 本体。
 
 ## 致谢
 

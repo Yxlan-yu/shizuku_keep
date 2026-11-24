@@ -10,8 +10,11 @@ fi
 
 set_perm_recursive "$MODPATH" 0 0 0755 0644
 set_perm "$MODPATH/service.sh" 0 0 0755
+set_perm "$MODPATH/boot-completed.sh" 0 0 0755
+set_perm "$MODPATH/uninstall.sh" 0 0 0755
 set_perm "$MODPATH/watch.sh" 0 0 0755
 set_perm "$MODPATH/webui.sh" 0 0 0755
+set_perm "$MODPATH/common.sh" 0 0 0644
 set_perm_recursive "$MODPATH/webroot" 0 0 0755 0644
 set_perm "$MODPATH/config.conf" 0 0 0644
 set_perm "$MODPATH/module.prop" 0 0 0644

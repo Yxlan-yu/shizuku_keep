@@ -24,9 +24,7 @@ case "$0" in
   *)   MODDIR=/data/adb/modules/shizuku_keep ;;
 esac
 
-PKG="moe.shizuku.privileged.api"
 LOG="$MODDIR/keep.log"
-SLOG=/data/local/tmp/shizuku_starter.log
 CONF="$MODDIR/config.conf"
 LOCK="/data/adb/shizuku_keep.lock"
 AUTOLIST=/data/adb/shizuku_keep.auto
@@ -42,6 +40,10 @@ AUTO_RESCAN=1800
 # shellcheck disable=SC1090
 [ -f "$CONF" ] && . "$CONF"
 
+# 公共函数（定位启动器 / 存活判断 / 前台探测），配置先读，包名才生效
+# shellcheck disable=SC1091
+. "$MODDIR/common.sh"
+
 log() { echo "$(date '+%m-%d %H:%M:%S') $*" >>"$LOG"; }
 
 # 扫描所有"真正声明了 Shizuku 权限"的应用（仅第三方包），写入 $AUTOLIST
@@ -52,7 +54,7 @@ scan_auto() {
   : >"$tmp"
   pm list packages -3 2>/dev/null | sed 's/^package://' | while read -r p; do
     [ -z "$p" ] && continue
-    [ "$p" = "$PKG" ] && continue
+    [ "$p" = "$SHIZUKU_PKG" ] && continue
     if dumpsys package "$p" 2>/dev/null | grep -q 'moe\.shizuku\.manager\.permission'; then
       echo "$p" >>"$tmp"
     fi
@@ -101,16 +103,7 @@ trim_log() {
   return 0
 }
 
-alive() { pidof shizuku_server >/dev/null 2>&1; }
-
-fg_pkg() {
-  out=$(dumpsys activity activities 2>/dev/null | grep -m1 -E '(topResumedActivity|ResumedActivity)[=:]')
-  if [ -z "$out" ]; then
-    out=$(dumpsys window 2>/dev/null | grep -m1 'mFocusedApp=')
-  fi
-  [ -z "$out" ] && return 0
-  echo "$out" | sed -n 's/.*u[0-9][0-9]* \([A-Za-z0-9._][A-Za-z0-9._]*\)\/.*/\1/p'
-}
+alive() { shizuku_alive; }
 
 is_watched() {
   p="$1"
@@ -125,40 +118,28 @@ is_watched() {
 }
 
 start_server() {
-  APK=$(pm path "$PKG" 2>/dev/null | head -1 | cut -d: -f2)
-  if [ -z "$APK" ]; then
-    log "找不到 $PKG，跳过"
-    return 1
-  fi
-  case "$(getprop ro.product.cpu.abi)" in
-    arm64*)   ABIDIR=arm64 ;;
-    armeabi*) ABIDIR=arm ;;
-    x86_64*)  ABIDIR=x86_64 ;;
-    x86)      ABIDIR=x86 ;;
-    *)        ABIDIR=arm64 ;;
-  esac
-  STARTER="${APK%/base.apk}/lib/$ABIDIR/libshizuku.so"
-  if [ ! -x "$STARTER" ]; then
-    log "启动器不可用: $STARTER"
-    return 1
-  fi
   log "拉起 Shizuku（缘由: $1）"
-  ( cd /data/local/tmp && "$STARTER" >"$SLOG" 2>&1 </dev/null ) &
+  if ! start_shizuku "$1"; then
+    log "拉起失败：找不到启动器（Shizuku 未安装或 APK 内无 native 库）"
+    return 1
+  fi
   return 0
 }
 
 log "=== shizuku_keep 启动 (ALWAYS_ON=$ALWAYS_ON, AUTO_WATCH=$AUTO_WATCH, 手工列表: ${WATCH_APPS:-无}) ==="
 
 # 等开机完成
+# KernelSU 会用 boot-completed.sh 在最准的时机先拉一次，这里主要照顾
+# Magisk / 没有 boot-completed 支持的环境；限时 5 分钟，绝不死等。
 n=0
 while [ "$(getprop sys.boot_completed)" != "1" ]; do
   sleep 3
   n=$((n + 1))
-  [ "$n" -gt 200 ] && break
+  [ "$n" -gt 100 ] && break
 done
-sleep 8
+sleep 6
 
-# 开机先来一发
+# 兜底首次拉起（真被 boot-completed.sh 拉过了就跳过）
 if [ "$ALWAYS_ON" = "1" ] && ! alive; then
   start_server "开机"
   sleep 12
