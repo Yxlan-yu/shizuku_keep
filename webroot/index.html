@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Shizuku 常驻</title>
+<style>
+  :root {
+    --bg: #F2F3F5;
+    --card: #FFFFFF;
+    --card2: #F4F5F7;
+    --text: #16181D;
+    --sub: #8A8F99;
+    --line: rgba(0,0,0,.07);
+    --accent: #3482FF;
+    --accent2: #E8F0FF;
+    --accent-fg: #FFFFFF;
+    --ok: #2FBF71;
+    --warn: #FF9F0A;
+    --bad: #FF5D5D;
+    --shadow: 0 2px 12px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --card: #191A1C;
+      --card2: #212226;
+      --text: #EDEEF0;
+      --sub: #8C9099;
+      --line: rgba(255,255,255,.09);
+      --accent: #4A8DFF;
+      --accent2: rgba(74,141,255,.16);
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    /* 顶部避开状态栏：WebView 是沉浸式（画在状态栏下面），
+       --inset-top 由运行时用「状态栏物理高度 / devicePixelRatio」算出来，
+       默认 44px 只是首帧兜底。不要再叠固定大值，否则会空出一大块。 */
+    padding: calc(var(--inset-top, 44px) + 16px) 14px
+             calc(30px + env(safe-area-inset-bottom, 0px)) 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 620px; margin: 0 auto; }
+
+  header { display: flex; align-items: center; justify-content: space-between; margin: 4px 4px 14px; }
+  h1 { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: -.2px; }
+  .pill {
+    font-size: 12px; font-weight: 700; padding: 4px 11px; border-radius: 999px;
+    background: var(--card2); color: var(--sub);
+  }
+  .pill.on { background: rgba(47,191,113,.14); color: var(--ok); }
+  .pill.off { background: rgba(255,93,93,.14); color: var(--bad); }
+
+  .card {
+    background: var(--card); border-radius: 20px; padding: 16px;
+    margin-bottom: 12px; box-shadow: var(--shadow);
+  }
+  .card h2 {
+    font-size: 12px; font-weight: 700; color: var(--sub);
+    margin: 0 0 12px; letter-spacing: .4px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card h2 .cnt { color: var(--text); font-weight: 700; margin-left: 4px; }
+
+  /* hero */
+  .hero { text-align: center; padding: 22px 16px 16px; }
+  .state { font-size: 27px; font-weight: 700; letter-spacing: -.6px; line-height: 1.2; }
+  .state.on { color: var(--ok); }
+  .state.off { color: var(--bad); }
+  .state-sub { font-size: 12.5px; color: var(--sub); margin-top: 7px; }
+
+  .grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--line); border-radius: 14px; overflow: hidden; margin-top: 16px;
+  }
+  .kv { background: var(--card); padding: 11px 12px; text-align: left; }
+  .kv .k { font-size: 11.5px; color: var(--sub); }
+  .kv .v { font-size: 14px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .v.ok { color: var(--ok); }
+  .v.bad { color: var(--bad); }
+
+  .hero-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .hero-actions .btn { flex: 1; }
+
+  /* 按钮 */
+  .btn {
+    appearance: none; border: 0; border-radius: 13px; padding: 11px 14px;
+    font-size: 14.5px; font-weight: 600; font-family: inherit;
+    background: var(--card2); color: var(--text); cursor: pointer;
+    transition: opacity .12s, transform .12s;
+  }
+  .btn:active { transform: scale(.975); opacity: .82; }
+  .btn.primary { background: var(--accent); color: var(--accent-fg); }
+  .btn.ghost { background: transparent; color: var(--accent); }
+  .btn.danger { background: rgba(255,93,93,.12); color: var(--bad); }
+  .btn[disabled] { opacity: .45; pointer-events: none; }
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  .btn-row .btn { flex: 1; }
+  .btn.sm { padding: 8px 12px; font-size: 13px; border-radius: 11px; }
+
+  /* 分段控件 */
+  .seg { display: flex; gap: 3px; background: var(--card2); border-radius: 14px; padding: 3px; }
+  .seg button {
+    flex: 1; appearance: none; border: 0; background: transparent;
+    color: var(--sub); font-family: inherit; font-size: 14px; font-weight: 600;
+    padding: 9px 6px; border-radius: 11px; cursor: pointer;
+    transition: background .16s, color .16s;
+  }
+  .seg button.active { background: var(--card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.09); }
+  @media (prefers-color-scheme: dark) {
+    .seg button.active { background: #2E3034; box-shadow: none; }
+  }
+
+  .hint { font-size: 12px; color: var(--sub); margin-top: 10px; line-height: 1.6; }
+  .hint b { color: var(--text); font-weight: 600; }
+
+  .swrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .swrow .t { font-size: 14px; font-weight: 600; }
+  .swrow .d { font-size: 11.5px; color: var(--sub); margin-top: 2px; }
+  .sw {
+    flex: none; width: 50px; height: 30px; border-radius: 999px; background: var(--card2);
+    position: relative; transition: background .18s; cursor: pointer;
+  }
+  .sw::after {
+    content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px;
+    border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.22);
+    transition: transform .18s;
+  }
+  .sw.on { background: var(--ok); }
+  .sw.on::after { transform: translateX(20px); }
+
+  /* ---------------- 应用行 ---------------- */
+  .ap {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 0; border-bottom: 1px solid var(--line);
+  }
+  .ap:last-of-type { border-bottom: 0; }
+  .ic {
+    width: 38px; height: 38px; border-radius: 11px; flex: none;
+    background: var(--card2); overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: #fff;
+    position: relative;
+  }
+  /* 图标：底下垫首字母，图片盖在上面；图片加载失败/不存在时自动露出首字母 */
+  .ic img {
+    position: absolute; left: 0; top: 0;
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .ic .ch { line-height: 1; }
+  .ap .meta { flex: 1; min-width: 0; }
+  .ap .nm {
+    font-size: 14px; font-weight: 600; letter-spacing: -.1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ap .pk {
+    font-size: 11px; color: var(--sub); margin-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  .ap.excluded .nm { color: var(--sub); text-decoration: line-through; }
+  .ap.excluded .ic { opacity: .45; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .dot.manual { background: var(--ok); }
+  .dot.auto { background: var(--accent); }
+  .dot.excluded { background: var(--sub); opacity: .5; }
+
+  .tag {
+    font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+    background: var(--card2); color: var(--sub); flex: none;
+  }
+  .tag.manual { background: rgba(47,191,113,.14); color: var(--ok); }
+  .tag.auto { background: var(--accent2); color: var(--accent); }
+  .mini {
+    appearance: none; border: 0; background: transparent; color: var(--sub);
+    font-size: 12px; font-weight: 600; font-family: inherit; padding: 5px 8px;
+    border-radius: 9px; cursor: pointer; flex: none;
+  }
+  .mini:active { background: var(--card2); }
+  .mini.del { color: var(--bad); }
+
+  /* chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip {
+    appearance: none; border: 0; font-family: inherit; cursor: pointer;
+    font-size: 12.5px; font-weight: 600; padding: 7px 12px; border-radius: 999px;
+    background: var(--card2); color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+  }
+  .chip:active { opacity: .7; }
+  .chip.added { background: transparent; color: var(--sub); border: 1px dashed var(--line); }
+
+  pre.log {
+    margin: 0; background: var(--card2); border-radius: 12px; padding: 11px;
+    font-size: 11px; line-height: 1.7; color: var(--sub);
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    max-height: 230px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  }
+
+  .empty { color: var(--sub); font-size: 13px; padding: 6px 0; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 40px; transform: translate(-50%, 12px);
+    background: rgba(20,22,26,.93); color: #fff; font-size: 13.5px; font-weight: 500;
+    padding: 10px 18px; border-radius: 999px; opacity: 0; pointer-events: none;
+    transition: opacity .18s, transform .18s; z-index: 300; max-width: 86vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .spin {
+    display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor;
+    border-top-color: transparent; border-radius: 50%; animation: r .7s linear infinite;
+    vertical-align: -2px; margin-right: 5px;
+  }
+  @keyframes r { to { transform: rotate(360deg); } }
+  footer { text-align: center; font-size: 11.5px; color: var(--sub); margin-top: 16px; line-height: 1.8; }
+
+  .demoBar {
+    background: rgba(255,159,10,.13); color: #B26B00;
+    font-size: 12px; font-weight: 600; text-align: center;
+    padding: 9px 12px; border-radius: 13px; margin-bottom: 12px;
+  }
+  @media (prefers-color-scheme: dark) { .demoBar { color: #FFB340; } }
+
+  /* ---------------- 底部弹层 ---------------- */
+  .mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.4);
+    opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 200;
+  }
+  .mask.show { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 201;
+    background: var(--bg); border-radius: 22px 22px 0 0;
+    transform: translateY(102%); transition: transform .26s cubic-bezier(.22,.8,.3,1);
+    max-height: 86vh; display: flex; flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -8px 40px rgba(0,0,0,.16);
+  }
+  .sheet.show { transform: translateY(0); }
+  .sheet-grip {
+    width: 38px; height: 4px; border-radius: 999px; background: var(--line);
+    margin: 9px auto 2px; flex: none;
+  }
+  .sheet-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 18px 10px; flex: none;
+  }
+  .sheet-head .t { font-size: 17px; font-weight: 700; }
+  .sheet-x {
+    appearance: none; border: 0; background: var(--card2); color: var(--sub);
+    width: 30px; height: 30px; border-radius: 50%; font-size: 15px; line-height: 1;
+    cursor: pointer; font-family: inherit;
+  }
+  .sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 18px 18px; }
+  .stabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .stabs button {
+    flex: 1; appearance: none; border: 0; font-family: inherit; cursor: pointer;
+    font-size: 13px; font-weight: 600; padding: 9px 4px; border-radius: 11px;
+    background: var(--card); color: var(--sub);
+  }
+  .stabs button.active { background: var(--accent); color: #fff; }
+  .searchbox { margin-bottom: 10px; }
+  input[type=text], input[type=search] {
+    width: 100%; appearance: none;
+    background: var(--card); border: 1px solid transparent; border-radius: 13px;
+    padding: 11px 14px; font-size: 15px; font-family: inherit;
+    color: var(--text);
+  }
+  input[type=text]:focus, input[type=search]:focus { outline: none; border-color: var(--accent); }
+  input::placeholder { color: var(--sub); }
+  .slist { background: var(--card); border-radius: 16px; overflow: hidden; }
+  .sitem {
+    display: flex; align-items: center; gap: 11px; padding: 10px 13px;
+    border-bottom: 1px solid var(--line); cursor: pointer;
+  }
+  .sitem:last-child { border-bottom: 0; }
+  .sitem:active { background: var(--card2); }
+  .sitem .meta { flex: 1; min-width: 0; }
+  .sitem .nm { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sitem .pk { font-size: 11px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Consolas, monospace; }
+  .sitem .plus { flex: none; color: var(--accent); font-size: 20px; font-weight: 300; line-height: 1; }
+  .sitem.on .plus { color: var(--ok); font-size: 15px; font-weight: 700; }
+  .sitem.off { opacity: .5; }
+  .sempty { padding: 24px 14px; text-align: center; color: var(--sub); font-size: 13px; }
+  .scope {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 9px 4px 3px; font-size: 11.5px; color: var(--sub);
+  }
+  .scope b { color: var(--text); font-weight: 600; }
+  .scope a { color: var(--accent); font-weight: 600; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Shizuku 常驻</h1>
+    <span class="pill" id="pill">读取中…</span>
+  </header>
+
+  <div class="demoBar" id="demoBar" style="display:none">本地演示模式 · 示例数据，操作不影响真机</div>
+
+  <div class="card hero">
+    <div class="state" id="state">—</div>
+    <div class="state-sub" id="stateSub">正在读取状态…</div>
+    <div class="grid">
+      <div class="kv"><div class="k">服务 PID</div><div class="v" id="vPid">—</div></div>
+      <div class="kv"><div class="k">运行身份</div><div class="v" id="vUid">—</div></div>
+      <div class="kv"><div class="k">守护进程</div><div class="v" id="vGuard">—</div></div>
+      <div class="kv"><div class="k">开机时长</div><div class="v" id="vUp">—</div></div>
+    </div>
+    <div class="hero-actions">
+      <button class="btn primary" id="btnRestart">重启服务</button>
+      <button class="btn" id="btnRefresh">刷新</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>运行模式</h2>
+    <div class="seg">
+      <button id="mAlways" data-mode="1">永久开启</button>
+      <button id="mDemand" data-mode="0">按需唤醒</button>
+    </div>
+    <div class="hint" id="modeHint"></div>
+    <div class="swrow">
+      <div>
+        <div class="t">自动发现</div>
+        <div class="d">扫描所有申请了 Shizuku 权限的应用</div>
+      </div>
+      <div class="sw" id="swAuto"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>
+      <span>目标应用<span class="cnt" id="appCnt"></span></span>
+      <button class="btn sm" id="btnOpenAdd" style="margin:-6px -4px -6px 0">+ 添加</button>
+    </h2>
+    <div id="appList"><div class="empty">读取中…</div></div>
+    <div class="hint" id="appHint"></div>
+  </div>
+
+  <div class="card">
+    <h2><span>运行日志</span></h2>
+    <pre class="log" id="logBox">—</pre>
+    <div class="btn-row">
+      <button class="btn" id="btnLog">刷新日志</button>
+      <button class="btn" id="btnScan">重新扫描</button>
+    </div>
+  </div>
+
+  <footer>
+    模块目录 /data/adb/modules/shizuku_keep<br>
+    作者 Yxlan-yu · KernelSU WebUI
+  </footer>
+</div>
+
+<!-- ============ 添加应用弹层 ============ -->
+<div class="mask" id="mask"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-grip"></div>
+  <div class="sheet-head">
+    <div class="t">添加应用</div>
+    <button class="sheet-x" id="btnCloseSheet">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="stabs">
+      <button data-tab="all" class="active">全部应用</button>
+      <button data-tab="recent">最近打开</button>
+      <button data-tab="manual">手输包名</button>
+    </div>
+
+    <div id="paneAll">
+      <div class="searchbox"><input type="search" id="search" placeholder="搜索应用名或包名…" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      <div class="scope">
+        <span id="scopeTxt">范围：<b>用户应用</b>（系统应用已屏蔽）</span>
+        <a id="btnScope">显示系统应用</a>
+      </div>
+      <div class="slist" id="allList"><div class="sempty">读取中…</div></div>
+    </div>
+
+    <div id="paneRecent" style="display:none">
+      <div class="slist" id="recentList"><div class="sempty">读取中…</div></div>
+    </div>
+
+    <div id="paneManual" style="display:none">
+      <input type="text" id="pkgInput" placeholder="例如 com.example.app" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <div class="btn-row"><button class="btn primary" id="btnAdd">添加到列表</button></div>
+      <div class="hint">会校验应用是否真的安装、是否申请了 Shizuku 权限。</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<link rel="stylesheet" href="https://mui.kernelsu.org/internal/insets.css">
+<style>
+  /* 放在 insets.css 之后：管理器或远程样式若给 body 加了 padding，一律以这里为准 */
+  html body { padding-top: calc(var(--inset-top, 44px) + 16px) !important; }
+</style>
+<script src="ksu.js"></script>
+<script src="resparse.js"></script>
+<script src="demo-icons.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var SCRIPT = '/data/adb/modules/shizuku_keep/webui.sh';
+  var BASE = 'sh ' + SCRIPT + ' ';
+  var CHUNK = 225000;          // 与 webui.sh 里的 CHUNK 一致
+  var BATCH_B64 = 560000;      // 单次 exec 大约敢取这么多 base64 字符
+  var st = null;
+
+  var DEMO = !SK.ready();
+  var demoLabels = {
+    'moe.ouom.neriplayer': '音理音理!',
+    'bin.mt.plus.canary': 'MT Manager',
+    'com.yifeng.tools': '逸风工具箱',
+    'info.muge.appshare': 'AppShare',
+    'io.github.samolego.canta': 'Canta',
+    'li.songe.gkd': 'GKD',
+    'zed.rainxch.githubstore': 'Komi Store',
+    'com.tencent.mm': '微信',
+    'com.tencent.mobileqq': 'QQ',
+    'com.netease.uuremote': 'UU远程',
+    'com.tencent.workbuddy.app': 'WorkBuddy',
+    'com.ss.android.ugc.aweme': '抖音'
+  };
+  var demo = {
+    mode: '1', autowatch: '1', svc: 1,
+    apps: [
+      { pkg: 'moe.ouom.neriplayer', src: 'manual' },
+      { pkg: 'bin.mt.plus.canary', src: 'auto' },
+      { pkg: 'com.yifeng.tools', src: 'auto' },
+      { pkg: 'info.muge.appshare', src: 'auto' },
+      { pkg: 'io.github.samolego.canta', src: 'auto' },
+      { pkg: 'li.songe.gkd', src: 'auto' },
+      { pkg: 'zed.rainxch.githubstore', src: 'auto' }
+    ],
+    recent: ['com.tencent.mobileqq', 'com.netease.uuremote', 'com.tencent.mm', 'com.ss.android.ugc.aweme', 'com.tencent.workbuddy.app'],
+    all: ['moe.ouom.neriplayer','bin.mt.plus.canary','com.yifeng.tools','info.muge.appshare','io.github.samolego.canta','li.songe.gkd','zed.rainxch.githubstore','com.tencent.mm','com.tencent.mobileqq','com.netease.uuremote','com.ss.android.ugc.aweme','com.tencent.workbuddy.app','com.miui.home','com.android.settings'],
+    log: [
+      '11-24 09:12:40 拉起 Shizuku（缘由: 进程消失）',
+      '11-24 08:56:03 自动发现完成：7 个应用在用 Shizuku',
+      '11-24 08:55:12 === shizuku_keep 启动 (ALWAYS_ON=1, AUTO_WATCH=1) ==='
+    ].join('\n')
+  };
+
+  function demoStatus() {
+    return 'mode=' + demo.mode + '\nautowatch=' + demo.autowatch +
+      '\npoll_dead=6\npoll_alive=12\nsvc=1\nsvc_pid=3437\nsvc_uid=0\nsvc_ppid=1\n' +
+      'guard=1\nguard_pid=14597\nuptime=81284\nmanual=\nexclude=\nauto_count=7\nlog_size=664';
+  }
+  function demoOut(args) {
+    var a = args.split(' ');
+    var cmd = a[0], arg = a[1];
+    if (cmd === 'status') return demoStatus();
+    if (cmd === 'apps') return demo.apps.map(function (x) { return x.pkg + '|' + x.src; }).join('\n');
+    if (cmd === 'recent') return demo.recent.join('\n');
+    if (cmd === 'allapps') return demo.all.join('\n');
+    if (cmd === 'log') return demo.log;
+    if (cmd === 'names') return Object.keys(demoLabels).map(function (k) { return k + '\t' + demoLabels[k]; }).join('\n');
+    if (cmd === 'add') {
+      if (demo.apps.some(function (x) { return x.pkg === arg; })) return 'ok|已在列表中';
+      demo.apps.push({ pkg: arg, src: 'manual' });
+      return 'ok|已添加 ' + arg;
+    }
+    if (cmd === 'rm') {
+      demo.apps.forEach(function (x) { if (x.pkg === arg) x.src = 'excluded'; });
+      return 'ok|已排除 ' + arg;
+    }
+    if (cmd === 'restore') {
+      demo.apps.forEach(function (x) { if (x.pkg === arg) x.src = 'auto'; });
+      return 'ok|已恢复 ' + arg;
+    }
+    if (cmd === 'mode') { demo.mode = arg; return 'ok|已切换为 ' + (arg === '1' ? '永久开启' : '按需唤醒'); }
+    if (cmd === 'autowatch') { demo.autowatch = arg; return 'ok|自动发现已' + (arg === '1' ? '开启' : '关闭'); }
+    if (cmd === 'restart') return 'ok|演示模式：服务已重启';
+    if (cmd === 'scan') return 'ok|演示模式：扫描已开始';
+    if (cmd === 'resprep') return 'err|演示模式不解析真实 APK';
+    return 'ok|演示模式';
+  }
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var toastEl = $('toast');
+  var toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2200);
+  }
+
+  var execChain = Promise.resolve();
+  function run(args, timeout) {
+    if (DEMO) {
+      return new Promise(function (resolve) {
+        setTimeout(function () { resolve({ errno: 0, stdout: demoOut(args), stderr: '' }); }, 120);
+      });
+    }
+    // 所有命令排队执行，避免同时 fork 一堆 shell 把设备拖慢
+    var p = execChain.then(function () {
+      return SK.exec(BASE + args, null, timeout || 20000);
+    });
+    execChain = p.then(function () {}, function () {});
+    return p;
+  }
+
+  function out(r) { return (r.stdout || '').replace(/\r/g, '').trim(); }
+  function firstLine(r) {
+    var s = out(r), i = s.indexOf('\n');
+    return i < 0 ? s : s.slice(0, i);
+  }
+  function parseResult(r) {
+    var line = firstLine(r), i = line.indexOf('|');
+    if (i < 0) return { level: 'err', msg: line || (r.stderr || '未知错误') };
+    return { level: line.slice(0, i), msg: line.slice(i + 1) };
+  }
+  function parseKV(s) {
+    var o = {};
+    s.split('\n').forEach(function (l) {
+      l = l.trim(); if (!l) return;
+      var i = l.indexOf('='); if (i < 0) return;
+      o[l.slice(0, i)] = l.slice(i + 1);
+    });
+    return o;
+  }
+  function parseApps(s) {
+    var arr = [];
+    s.split('\n').forEach(function (l) {
+      l = l.trim(); if (!l) return;
+      var i = l.indexOf('|'); if (i < 0) return;
+      arr.push({ pkg: l.slice(0, i), src: l.slice(i + 1) });
+    });
+    return arr;
+  }
+  function fmtDuration(sec) {
+    sec = parseInt(sec, 10) || 0;
+    var d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+    if (d > 0) return d + ' 天 ' + h + ' 小时';
+    if (h > 0) return h + ' 小时 ' + m + ' 分';
+    return m + ' 分钟';
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* 顶部安全距离：WebUI 的 WebView 是沉浸式的，页面画在状态栏下面，
+     所以拿真机状态栏高度（物理 px）除以 devicePixelRatio 得到 CSS px。 */
+  function applyTopInset() {
+    if (DEMO) return;
+    var dpr = window.devicePixelRatio || 2.75;
+    run('insetbar', 8000).then(function (r) {
+      var px = parseInt(out(r), 10);
+      if (!px || px <= 0) return;
+      var css = Math.round(px / dpr);
+      if (css < 24) css = 24;   // 兜底：别把标题顶到状态栏里
+      if (css > 96) css = 96;
+      document.documentElement.style.setProperty('--inset-top', css + 'px');
+    }).catch(function () {});
+  }
+
+  /* ===================================================================
+   *  应用元数据：名称 + 图标
+   *    ① 新版 KernelSU 管理器：一次 getPackagesInfo 拿全部 appLabel，
+   *       图标直接 <img src="ksu://icon/包名">，完全不用碰 APK
+   *    ② 旧版管理器兜底：names 缓存 → 现场解析 APK 的 AXML/ARSC
+   *    ③ 都拿不到：按名称生成彩色首字头像
+   * =================================================================== */
+  var META = {};          // pkg -> { label, iconPath, url, system, failed }
+  var metaChain = Promise.resolve();
+
+  function metaOf(pkg) { return META[pkg] || (META[pkg] = { label: null, iconPath: null, url: null, failed: false }); }
+
+  // 把原生接口返回的一条 PackageInfoPerUid 合进 META
+  function applyInfo(m, pkg, it) {
+    if (!it || it.error) return false;
+    if (it.appLabel) m.label = String(it.appLabel);
+    if (typeof it.isSystem === 'boolean') m.system = it.isSystem;
+    if (!m.url) m.url = SK.iconUrl(pkg) || null;
+    return !!m.label;
+  }
+
+  // 批量预热：一次调用补齐一批包名，列表里就不用一个个解析 APK 了
+  function primeMeta(pkgs) {
+    if (DEMO || !pkgs || !pkgs.length || !SK.hasPm()) return Promise.resolve();
+    var infos = SK.packagesInfo(pkgs);
+    if (!infos) return Promise.resolve();
+    infos.forEach(function (it) {
+      if (it && it.packageName) applyInfo(metaOf(it.packageName), it.packageName, it);
+    });
+    return Promise.resolve();
+  }
+
+  function loadNames() {
+    // 演示模式：直接拿内置的真实图标看效果
+    if (DEMO && typeof DEMO_ICONS !== 'undefined') {
+      Object.keys(DEMO_ICONS).forEach(function (k) {
+        var m = metaOf(k);
+        m.label = demoLabels[k] || k;
+        m.url = DEMO_ICONS[k];
+      });
+      return Promise.resolve();
+    }
+    return run('names').then(function (r) {
+      out(r).split('\n').forEach(function (l) {
+        if (!l) return;
+        var p = l.split('\t');
+        if (!p[0]) return;
+        var m = metaOf(p[0]);
+        if (p[1]) m.label = p[1];
+        if (p[2]) m.iconPath = p[2];
+      });
+    }).catch(function () {});
+  }
+
+  function b64bytes(s) {
+    var bin = atob(s), n = bin.length, out = new Uint8Array(n);
+    for (var i = 0; i < n; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function concatBytes(list) {
+    var total = 0, i;
+    for (i = 0; i < list.length; i++) total += list[i].length;
+    var out = new Uint8Array(total), at = 0;
+    for (i = 0; i < list.length; i++) { out.set(list[i], at); at += list[i].length; }
+    return out;
+  }
+  function gunzip(bytes) {
+    if (typeof DecompressionStream === 'undefined') return Promise.reject(new Error('系统 WebView 太旧'));
+    var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return new Response(stream).arrayBuffer().then(function (b) { return new Uint8Array(b); });
+  }
+
+  // 把某个压缩流按块取回来
+  function pullStream(pkg, which, totalBytes) {
+    var chunks = Math.max(1, Math.ceil(totalBytes / CHUNK));
+    var per = Math.max(1, Math.floor(BATCH_B64 / (CHUNK * 1.4)));
+    var parts = [], got = 0;
+
+    function step() {
+      if (got >= chunks) return Promise.resolve(concatBytes(parts));
+      var cnt = Math.min(per, chunks - got);
+      return run('resdata ' + pkg + ' ' + which + ' ' + got + ' ' + cnt, 30000).then(function (r) {
+        var txt = out(r);
+        if (txt.indexOf('err|') === 0) throw new Error(txt.slice(4));
+        var lines = txt.split('\n').filter(Boolean);
+        if (!lines.length) throw new Error('没有取到数据');
+        var expect = got;
+        lines.forEach(function (l) {
+          var i = l.indexOf('|');
+          if (i < 0) return;
+          var idx = parseInt(l.slice(0, i), 10);
+          if (idx !== expect) return;
+          parts.push(b64bytes(l.slice(i + 1)));
+          got++;
+          expect++;
+        });
+        if (got === 0) throw new Error('数据块解析失败');
+        return step();
+      });
+    }
+    return step();
+  }
+
+  function resolveMeta(pkg) {
+    var m = metaOf(pkg);
+    if (m.label || m.failed) return Promise.resolve(m);
+    if (DEMO) {
+      m.label = demoLabels[pkg] || pkg;
+      return Promise.resolve(m);
+    }
+    // ① 原生接口，一条就够，零 shell
+    if (SK.hasPm()) {
+      var infos = SK.packagesInfo([pkg]);
+      if (infos && infos.length && applyInfo(m, pkg, infos[0])) {
+        return Promise.resolve(m);
+      }
+    }
+    if (typeof ResParse === 'undefined') { m.failed = true; return Promise.resolve(m); }
+
+    return run('resprep ' + pkg, 40000).then(function (r) {
+      var kv = parseKV(out(r));
+      if (kv.apk === undefined || kv.err) throw new Error(kv.msg || '读取 APK 失败');
+      var mSize = parseInt(kv.m, 10) || 0;
+      var aSize = parseInt(kv.a, 10) || 0;
+      if (!mSize) throw new Error('没有 manifest');
+
+      return pullStream(pkg, 'm', mSize).then(function (mgz) {
+        return gunzip(mgz).then(function (manBuf) {
+          if (!aSize) return ResParse.resolve(manBuf, null);
+          return pullStream(pkg, 'a', aSize).then(function (agz) {
+            return gunzip(agz).then(function (arscBuf) {
+              return ResParse.resolve(manBuf, arscBuf);
+            });
+          });
+        });
+      });
+    }).then(function (info) {
+      // 图标是自适应图标的 XML 时，再进去挖一次真位图
+      var dig = Promise.resolve(null);
+      if (!info.icon && info.iconXml && info._arsc && typeof ResParse.iconFromAdaptive === 'function') {
+        dig = run('iconfile ' + pkg + ' ' + info.iconXml, 20000).then(function (rr) {
+          var s = out(rr);
+          if (!s || s.indexOf('err|') === 0) return null;
+          try {
+            return ResParse.iconFromAdaptive(info._arsc, b64bytes(s));
+          } catch (e) { return null; }
+        }).catch(function () { return null; });
+      }
+      return dig.then(function (dug) {
+        m.label = info.label || pkg;
+        m.iconPath = info.icon || dug || null;
+        var lb = String(m.label).replace(/["\\$`\n\r\t]/g, '').slice(0, 60);
+        var ic = (m.iconPath || '-').replace(/["\\$`\n\r\t]/g, '');
+        return run('setname ' + pkg + ' "' + lb + '" "' + ic + '"')
+          .catch(function () {}).then(function () { return m; });
+      });
+    }).catch(function (e) {
+      m.failed = true;
+      if (!m.label) m.label = null;
+      return m;
+    });
+  }
+
+  // 串行执行，避免同时开一堆 shell
+  function ensureMeta(pkg) {
+    var m = metaOf(pkg);
+    if (m.label || m.failed) return Promise.resolve(m);
+    var p = metaChain.then(function () {
+      if (m.label || m.failed) return m;
+      return resolveMeta(pkg);
+    });
+    metaChain = p.catch(function () {});
+    return p;
+  }
+
+  function loadIcon(pkg) {
+    var m = metaOf(pkg);
+    if (m.url || DEMO) return Promise.resolve(m);
+    // 新版管理器：交给它自己出图，省掉解包解析
+    if (SK.hasPm()) {
+      m.url = SK.iconUrl(pkg);
+      return Promise.resolve(m);
+    }
+    if (!m.iconPath) return Promise.resolve(m);
+    return run('iconfile ' + pkg + ' ' + m.iconPath, 20000).then(function (r) {
+      var s = out(r);
+      if (!s || s.indexOf('err|') === 0) return m;
+      var ext = (/\.png$/i.test(m.iconPath)) ? 'png' : (/\.jpg|\.jpeg$/i.test(m.iconPath)) ? 'jpeg' : 'webp';
+      m.url = 'data:image/' + ext + ';base64,' + s;
+      return m;
+    }).catch(function () { return m; });
+  }
+
+  /* ---------------- 图标占位：按名字生成彩色首字 ---------------- */
+  var HUES = [210, 275, 340, 15, 40, 95, 165, 190, 250, 310];
+  function hueOf(s) {
+    var h = 0;
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 997;
+    return HUES[h % HUES.length];
+  }
+  function initialOf(label, pkg) {
+    var s = String(label || pkg || '?').replace(/^[\s@]+/, '');
+    return s.charAt(0).toUpperCase() || '?';
+  }
+  function iconHTML(pkg, label, url, cls) {
+    var h = hueOf(pkg);
+    // 首字母垫底，图标盖上去；图挂了就自动露回首字母
+    return '<div class="ic' + (cls || '') + '" style="background:hsl(' + h + ',72%,58%)">' +
+      '<span class="ch">' + esc(initialOf(label, pkg)) + '</span>' +
+      (url ? '<img src="' + esc(url) + '" alt="">' : '') +
+      '</div>';
+  }
+
+  /* ---------------- 渲染：状态 ---------------- */
+  function renderStatus(o) {
+    st = o;
+    var on = o.svc === '1';
+    var pill = $('pill');
+    pill.textContent = on ? '运行中' : '已停止';
+    pill.className = 'pill ' + (on ? 'on' : 'off');
+
+    var stateEl = $('state');
+    stateEl.textContent = on ? 'Shizuku 已就绪' : 'Shizuku 未运行';
+    stateEl.className = 'state ' + (on ? 'on' : 'off');
+    $('stateSub').textContent = on ? '授权对任意应用长期有效' : '守护会在几秒内自动拉起，也可手动重启';
+
+    $('vPid').textContent = on ? o.svc_pid : '—';
+    var uidEl = $('vUid');
+    uidEl.textContent = on ? (o.svc_uid === '0' ? 'root' : 'uid ' + o.svc_uid) : '—';
+    uidEl.className = 'v ' + (on && o.svc_uid === '0' ? 'ok' : '');
+
+    var gEl = $('vGuard');
+    gEl.textContent = o.guard === '1' ? '运行中' : '未运行';
+    gEl.className = 'v ' + (o.guard === '1' ? 'ok' : 'bad');
+    $('vUp').textContent = fmtDuration(o.uptime);
+
+    var always = o.mode === '1';
+    $('mAlways').classList.toggle('active', always);
+    $('mDemand').classList.toggle('active', !always);
+    $('modeHint').innerHTML = always
+      ? '开机自动拉起并常驻，<b>任何</b>用 Shizuku 的应用都能拿到授权，不用维护列表。'
+      : '只在下面列表里的应用切到前台时才拉起，其余时间不占用。';
+    $('swAuto').classList.toggle('on', o.autowatch === '1');
+
+    $('appHint').innerHTML = always
+      ? '当前是<b>永久开启</b>，列表不影响行为，切到「按需唤醒」后才会用到。'
+      : '只有这里的应用在前台时才会拉起 Shizuku。';
+  }
+
+  /* ---------------- 渲染：目标应用 ---------------- */
+  function rowHTML(a) {
+    var m = metaOf(a.pkg);
+    var label = m.label && m.label !== a.pkg ? m.label : '';
+    var name = label || a.pkg;
+    var tag = a.src === 'manual' ? '手动' : (a.src === 'auto' ? '自动' : '已排除');
+    var pk = label ? '<div class="pk">' + esc(a.pkg) + '</div>' : '';
+    return '<div class="ap ' + a.src + '" data-pkg="' + esc(a.pkg) + '">' +
+      iconHTML(a.pkg, m.label || a.pkg, m.url) +
+      '<div class="meta"><div class="nm">' + esc(name) + '</div>' + pk + '</div>' +
+      '<span class="tag ' + a.src + '">' + tag + '</span>' +
+      (a.src === 'excluded'
+        ? '<button class="mini" data-act="restore">恢复</button>'
+        : '<button class="mini del" data-act="rm">删除</button>') +
+      '</div>';
+  }
+
+  function renderApps(list) {
+    var box = $('appList');
+    if (!list.length) {
+      box.innerHTML = '<div class="empty">还没有目标应用，点右上角「+ 添加」。</div>';
+      $('appCnt').textContent = '';
+      return;
+    }
+    var order = { manual: 0, auto: 1, excluded: 2 };
+    list.sort(function (a, b) { return (order[a.src] || 9) - (order[b.src] || 9); });
+    var active = list.filter(function (x) { return x.src !== 'excluded'; }).length;
+    $('appCnt').textContent = ' ' + active;
+
+    box.innerHTML = list.map(rowHTML).join('');
+
+    Array.prototype.forEach.call(box.querySelectorAll('button[data-act]'), function (btn) {
+      btn.addEventListener('click', function () {
+        var row = btn.closest('.ap');
+        var pkg = row.getAttribute('data-pkg');
+        var act = btn.getAttribute('data-act');
+        btn.disabled = true;
+        run(act + ' ' + pkg).then(function (r) {
+          toast(parseResult(r).msg);
+          return refresh();
+        });
+      });
+    });
+
+    // 名称/图标：先补齐可见的这些
+    list.forEach(function (a) {
+      ensureMeta(a.pkg).then(function (m) {
+        applyMeta(box.querySelector('.ap[data-pkg="' + a.pkg.replace(/"/g, '\\"') + '"]'), a.pkg, m);
+      });
+    });
+  }
+
+  // 把查到的名称/图标贴到一行上（应用列表和弹窗共用）
+  function applyMeta(el, pkg, m) {
+    if (!el) return;
+    var ic = el.querySelector('.ic');
+    if (m.label && m.label !== pkg) {
+      var nm = el.querySelector('.nm');
+      if (nm) nm.textContent = m.label;
+      var meta = el.querySelector('.meta');
+      if (meta && !meta.querySelector('.pk')) {
+        var pk = document.createElement('div');
+        pk.className = 'pk';
+        pk.textContent = pkg;
+        meta.appendChild(pk);
+      }
+    }
+    var ch = ic && ic.querySelector('.ch');
+    if (ch) ch.textContent = initialOf(m.label, pkg);
+
+    if (!m.url && m.iconPath) {
+      loadIcon(pkg).then(function (m2) {
+        if (m2.url) setIconImg(el, m2.url);
+      });
+    } else if (m.url) {
+      setIconImg(el, m.url);
+    }
+  }
+
+  function setIconImg(el, url) {
+    var ic = el && el.querySelector('.ic');
+    if (!ic) return;
+    var img = ic.querySelector('img');
+    if (!img) {
+      img = document.createElement('img');
+      img.alt = '';
+      ic.appendChild(img);
+    }
+    if (img.getAttribute('src') !== url) img.src = url;
+  }
+
+  /* ---------------- 底部弹层 ---------------- */
+  var allPkgs = [];
+  var recentPkgs = [];
+  var curTab = 'all';
+  var scopeAll = false;      // false = 只看用户应用（默认，系统应用屏蔽）
+  var userSet = null;        // 用户应用集合，旧版管理器用来筛「最近打开」
+
+  function openSheet() {
+    $('mask').classList.add('show');
+    $('sheet').classList.add('show');
+    loadAllApps().then(loadRecent);
+  }
+  function closeSheet() {
+    $('mask').classList.remove('show');
+    $('sheet').classList.remove('show');
+  }
+
+  function pkgArray(s) {
+    return String(s || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+
+  // type: 'user' 用户应用 / 'all' 全部应用
+  function fetchPackages(type) {
+    if (SK.hasPm()) {
+      var a = SK.listPackages(type);
+      if (a && a.length) return Promise.resolve(a);
+    }
+    return run('allapps' + (type === 'all' ? ' sys' : ''), 30000).then(function (r) {
+      return pkgArray(out(r));
+    });
+  }
+
+  function sortByLabel(list) {
+    return list.slice().sort(function (a, b) {
+      var la = (META[a] && META[a].label) || a;
+      var lb = (META[b] && META[b].label) || b;
+      try { return la.localeCompare(lb, 'zh-Hans-CN') || a.localeCompare(b); }
+      catch (e) { return la < lb ? -1 : la > lb ? 1 : 0; }
+    });
+  }
+
+  function loadAllApps() {
+    if (DEMO) { allPkgs = demo.all.slice(); renderAll(); return Promise.resolve(); }
+    return fetchPackages(scopeAll ? 'all' : 'user').then(function (list) {
+      if (!scopeAll) {
+        userSet = {};
+        list.forEach(function (p) { userSet[p] = 1; });
+      }
+      // 名称/图标一次性批量补齐，之后列表不再逐个解 APK
+      return primeMeta(list).then(function () {
+        allPkgs = sortByLabel(list);
+        renderAll();
+      });
+    }).catch(function () {
+      $('allList').innerHTML = '<div class="sempty">读取失败</div>';
+    });
+  }
+
+  // 把系统应用从「最近打开」里剔掉
+  function filterUserApps(list) {
+    if (scopeAll || !list.length) return Promise.resolve(list);
+    var infos = SK.hasPm() ? SK.packagesInfo(list) : null;
+    if (infos) {
+      var sys = {};
+      infos.forEach(function (it) { if (it && it.isSystem === true) sys[it.packageName] = 1; });
+      return Promise.resolve(list.filter(function (p) { return !sys[p]; }));
+    }
+    if (userSet) return Promise.resolve(list.filter(function (p) { return userSet[p]; }));
+    return Promise.resolve(list);
+  }
+
+  function loadRecent() {
+    return run('recent').then(function (r) {
+      var list = pkgArray(out(r)).filter(function (x) {
+        return x && x !== 'me.weishu.kernelsu';
+      });
+      return filterUserApps(list);
+    }).then(function (list) {
+      recentPkgs = list;
+      return primeMeta(list).then(renderRecent);
+    }).catch(function () {});
+  }
+
+  function inList(pkg) {
+    return lastApps.some(function (x) { return x.pkg === pkg && x.src !== 'excluded'; });
+  }
+
+  function sitemHTML(pkg) {
+    var m = metaOf(pkg);
+    var added = inList(pkg);
+    var name = (m.label && m.label !== pkg) ? m.label : pkg;
+    var pk = (m.label && m.label !== pkg) ? '<div class="pk">' + esc(pkg) + '</div>' : '';
+    return '<div class="sitem' + (added ? ' on' : '') + '" data-pkg="' + esc(pkg) + '">' +
+      iconHTML(pkg, m.label || pkg, m.url) +
+      '<div class="meta"><div class="nm">' + esc(name) + '</div>' + pk + '</div>' +
+      '<span class="plus">' + (added ? '✓' : '+') + '</span>' +
+      '</div>';
+  }
+
+  function bindSheetItems(box) {
+    Array.prototype.forEach.call(box.querySelectorAll('.sitem'), function (it) {
+      it.addEventListener('click', function () {
+        var pkg = it.getAttribute('data-pkg');
+        if (it.classList.contains('on')) { toast('已在列表里'); return; }
+        run('add ' + pkg).then(function (r) {
+          toast(parseResult(r).msg);
+          return refresh().then(function () {
+            it.classList.add('on');
+            it.querySelector('.plus').textContent = '✓';
+          });
+        });
+      });
+    });
+  }
+
+  function renderAll() {
+    var box = $('allList');
+    var q = ($('search').value || '').trim().toLowerCase();
+    var list = allPkgs;
+    if (q) {
+      list = list.filter(function (p) {
+        var m = META[p];
+        return p.toLowerCase().indexOf(q) >= 0 || (m && m.label && m.label.toLowerCase().indexOf(q) >= 0);
+      });
+    }
+    if (!list.length) {
+      box.innerHTML = '<div class="sempty">' + (q ? '没有匹配的应用' : '没有读取到应用') + '</div>';
+      return;
+    }
+    var shown = list.slice(0, 80);
+    box.innerHTML = shown.map(sitemHTML).join('') +
+      (list.length > shown.length ? '<div class="sempty">还有 ' + (list.length - shown.length) + ' 个，继续输入可缩小范围</div>' : '');
+
+    bindSheetItems(box);
+
+    // 只为前 20 个补名称/图标，避免一次解析上百个 APK
+    shown.slice(0, 20).forEach(function (p) {
+      ensureMeta(p).then(function (m) {
+        applyMeta(box.querySelector('.sitem[data-pkg="' + p.replace(/"/g, '\\"') + '"]'), p, m);
+      });
+    });
+  }
+
+  function renderRecent() {
+    var box = $('recentList');
+    if (!recentPkgs.length) {
+      box.innerHTML = '<div class="sempty">最近打开里没有用户应用</div>';
+      return;
+    }
+    box.innerHTML = recentPkgs.map(sitemHTML).join('');
+    bindSheetItems(box);
+    recentPkgs.forEach(function (p) {
+      ensureMeta(p).then(function (m) {
+        applyMeta(box.querySelector('.sitem[data-pkg="' + p.replace(/"/g, '\\"') + '"]'), p, m);
+      });
+    });
+  }
+
+  /* ---------------- 数据加载 ---------------- */
+  var lastApps = [];
+
+  function refresh() {
+    return run('status').then(function (r) {
+      if (r.errno !== 0 && !out(r)) { toast(r.stderr || '读取状态失败'); return; }
+      renderStatus(parseKV(out(r)));
+      return run('apps').then(function (r2) {
+        lastApps = parseApps(out(r2));
+        return primeMeta(lastApps.map(function (x) { return x.pkg; })).then(function () {
+          renderApps(lastApps.slice());
+        });
+      });
+    });
+  }
+
+  /* ---------------- 事件 ---------------- */
+  $('btnRefresh').addEventListener('click', function () {
+    var b = this;
+    b.disabled = true;
+    b.innerHTML = '<span class="spin"></span>刷新';
+    refresh().then(function () { b.disabled = false; b.textContent = '刷新'; });
+  });
+
+  $('btnRestart').addEventListener('click', function () {
+    var b = this;
+    b.disabled = true;
+    b.innerHTML = '<span class="spin"></span>重启中';
+    toast('正在重启 Shizuku 服务…');
+    run('restart', 30000).then(function (r) {
+      toast(parseResult(r).msg);
+      b.disabled = false;
+      b.textContent = '重启服务';
+      return refresh();
+    });
+  });
+
+  $('mAlways').addEventListener('click', function () { switchMode('1'); });
+  $('mDemand').addEventListener('click', function () { switchMode('0'); });
+  function switchMode(m) {
+    if (st && st.mode === m) return;
+    run('mode ' + m).then(function (r) { toast(parseResult(r).msg); return refresh(); });
+  }
+
+  $('swAuto').addEventListener('click', function () {
+    var next = (st && st.autowatch === '1') ? '0' : '1';
+    run('autowatch ' + next).then(function (r) { toast(parseResult(r).msg); return refresh(); });
+  });
+
+  $('btnLog').addEventListener('click', loadLog);
+  function loadLog() {
+    var b = $('btnLog');
+    b.disabled = true;
+    b.innerHTML = '<span class="spin"></span>读取';
+    run('log 40').then(function (r) {
+      $('logBox').textContent = out(r) || '（暂无日志）';
+      b.disabled = false;
+      b.textContent = '刷新日志';
+    });
+  }
+
+  $('btnScan').addEventListener('click', function () {
+    run('scan').then(function (r) { toast(parseResult(r).msg); });
+  });
+
+  $('btnOpenAdd').addEventListener('click', openSheet);
+  $('btnCloseSheet').addEventListener('click', closeSheet);
+  $('mask').addEventListener('click', closeSheet);
+
+  // 范围切换：默认只看用户应用，需要时再放系统应用进来
+  $('btnScope').addEventListener('click', function () {
+    scopeAll = !scopeAll;
+    $('scopeTxt').innerHTML = scopeAll
+      ? '范围：<b>全部应用</b>（含系统应用）'
+      : '范围：<b>用户应用</b>（系统应用已屏蔽）';
+    this.textContent = scopeAll ? '只看用户应用' : '显示系统应用';
+    $('allList').innerHTML = '<div class="sempty">读取中…</div>';
+    $('recentList').innerHTML = '<div class="sempty">读取中…</div>';
+    loadAllApps().then(loadRecent);
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.stabs button'), function (b) {
+    b.addEventListener('click', function () {
+      curTab = b.getAttribute('data-tab');
+      Array.prototype.forEach.call(document.querySelectorAll('.stabs button'), function (x) {
+        x.classList.toggle('active', x === b);
+      });
+      $('paneAll').style.display = curTab === 'all' ? '' : 'none';
+      $('paneRecent').style.display = curTab === 'recent' ? '' : 'none';
+      $('paneManual').style.display = curTab === 'manual' ? '' : 'none';
+    });
+  });
+
+  $('search').addEventListener('input', renderAll);
+
+  $('btnAdd').addEventListener('click', doAdd);
+  $('pkgInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.keyCode === 13) doAdd();
+  });
+
+  function doAdd() {
+    var input = $('pkgInput');
+    var pkg = input.value.replace(/\s/g, '');
+    if (!pkg) { toast('请输入包名'); return; }
+    var b = $('btnAdd');
+    b.disabled = true;
+    run('add ' + pkg).then(function (r) {
+      var res = parseResult(r);
+      toast(res.msg);
+      if (res.level === 'ok') input.value = '';
+      b.disabled = false;
+      return refresh();
+    });
+  }
+
+  /* ---------------- 启动 ---------------- */
+  if (!SK.ready() && !DEMO) {
+    $('stateSub').textContent = '请从 KernelSU 管理器的「WebUI」按钮打开本页面';
+    $('pill').textContent = '未连接';
+    $('pill').className = 'pill off';
+  } else {
+    if (DEMO) $('demoBar').style.display = 'block';
+    applyTopInset();
+    loadNames().then(function () {
+      return refresh();
+    }).then(loadLog);
+  }
+})();
+</script>
+</body>
+</html>

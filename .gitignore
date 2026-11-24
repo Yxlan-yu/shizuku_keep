@@ -1,0 +1,12 @@
+# 调试 / 临时文件
+_t*.html
+_dom*.html
+*_check.js
+*.log
+keep.log
+*.auto
+*.names
+
+# 系统
+.DS_Store
+Thumbs.db
